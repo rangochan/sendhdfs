@@ -13,17 +13,18 @@
 char* loopBufReading( char* rbuf ) 
 {
 	char* tmpbuf = rbuf;
-    char* tbuf = (char*)malloc(sizeof(char*) * MAXLEN);
 
     int be_return = 0;
     while(1) {
-        tbuf=fgets(tbuf, READSIZE, stdin);
+        char* tbuf = (char*)malloc(sizeof(char*) * MAXLEN);
+		tbuf=fgets(tbuf, READSIZE, stdin);
         if(tbuf!=NULL) {
             if(READSIZE < strlen(rbuf) + strlen(tbuf)) {
                 be_return ++;
             }
             strncpy(tmpbuf, tbuf, strlen(tbuf));
             tmpbuf += strlen(tbuf) * sizeof(*tbuf);
+			free(tbuf);
             if(be_return > 0) {
                 return rbuf;
             }
