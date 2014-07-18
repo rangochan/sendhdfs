@@ -51,7 +51,7 @@ char* generatefilename(time_t tnow) {
 /*
  *set file parent path template:/%Y-%m-%d/
  */
-char* generateparentpath(time_t tnow) {
+char* generatepath(time_t tnow) {
     struct tm* p = localtime(&tnow);
     char* buf = (char*)malloc(100);
     strftime(buf,100,"/rsyslogtest/%Y-%m-%d",p);
@@ -75,7 +75,7 @@ void usage(const char * cmd)
 int main(int argc, char *argv[]) {
 	time_t init_time = time(NULL);
     char* filename = generatefilename(init_time);
-    char* logpath = generateparentpath(init_time);
+    char* logpath = generatepath(init_time);
     char* hostname;
     int portnum;
     char* username;
@@ -107,10 +107,6 @@ int main(int argc, char *argv[]) {
         }
     }
 
-//    char *file_t = strdup(filename);
-//	char *path = dirname(file_t);
-//	printf("dirname %s \nfilename %s\n", path, filename);
-    
     /* produce a hdfs connection !!*/
     hdfsFS fs = hdfsConnectAsUser(hostname, portnum, username);
 	if(fs == NULL){
@@ -128,16 +124,14 @@ int main(int argc, char *argv[]) {
     }
 
     char* filepath=strcat(logpath,filename);
-    printf("%d,%s,%s\n",__LINE__,filename,filepath);
-  //  hdfs file exists?
+    /* hdfs file exists? */
     int re;
 	re = HDFSFileExists(fs, filepath);
     if(re == 1) {
         printf("file path exits!!\n");
     }
-//	free(file_t);
     
-    //open a hdfs file depending on the value of re
+    /* open a hdfs file depending on the value of re */
     hdfsFile fh = HDFSopenfile(fs, filepath, re);
 	if (fh == NULL) {
 		printf("error open return\n");
@@ -150,11 +144,13 @@ int main(int argc, char *argv[]) {
     }
     char* mbuf=rbuf;
 
-    // loop read stdin and write into hdfs file until fgets encounts NULL !
+    /* loop read stdin and write into hdfs file until fgets encounts NULL ! */
     while((fgets(mbuf, 1024, stdin)) != NULL ) {
 	    time_t next_time = time(NULL);
+
         /* is already the next day ?*/
         if ((init_time /86400) == (next_time/86400)) {
+            /* is already the next hour ? */
             if ((init_time/3600) == (next_time)/3600) {
                 hdfsWrite(fs, fh, (void*)rbuf, strlen(rbuf));
                 hdfsFlush(fs,fh);
@@ -164,19 +160,19 @@ int main(int argc, char *argv[]) {
                 }
             }else {
                 hdfsCloseFile(fs,fh);
-                char* currentfilepath = generateparentpath(next_time);
+                char* curfilepath = generatepath(next_time);
                 char* nextfile = generatefilename(next_time);
-                char* nextfilepath=strcat(currentfilepath,nextfile);
+                char* nextfilepath=strcat(curfilepath,nextfile);
                 hdfsFile fh = HDFSopenfile(fs, nextfilepath, 2);
                 hdfsWrite(fs,fh,(void*)rbuf,strlen(rbuf));
                 hdfsFlush(fs,fh);
             }
         }else {
                 hdfsCloseFile(fs, fh); 
-                char* currentfilepath = generateparentpath(next_time);
+                char* curfilepath = generatepath(next_time);
                 char* nextfile = generatefilename(next_time);
-                char* nextfilepath=strcat(currentfilepath,nextfile);
-                hdfsCreateDirectory(fs,currentfilepath);
+                char* nextfilepath=strcat(curfilepath,nextfile);
+                hdfsCreateDirectory(fs,curfilepath);
                 hdfsFile fh = HDFSopenfile(fs,nextfilepath, 2);
                 hdfsWrite(fs,fh,(void*)rbuf,strlen(rbuf));
                 hdfsFlush(fs,fh);
@@ -185,7 +181,7 @@ int main(int argc, char *argv[]) {
     }
     free(rbuf);
 
-    // close hdfs file and diconnect!
+    /* close hdfs file and diconnect! */
     hdfsCloseFile(fs, fh);
     hdfsDisconnect(fs);    
     return 0;
