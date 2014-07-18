@@ -38,13 +38,23 @@ hdfsFile HDFSopenfile(hdfsFS fs, const char *filename, int re) {
 }
 
 /*
- *set filename template:%Y-%m-%d-%H-ip.log
+ *set filename template:ip.%H.log
  */
-char* generatefilename(void) {
-    time_t timenow = time(NULL);
-    struct tm* p = localtime(&timenow);
-    char* buf = (char*)malloc(1024);
-    strftime(buf,256,"/rsyslogtest/%Y-%m-%d-%H-172.18.218.19.log",p);
+char* generatefilename(time_t tnow) {
+    struct tm* p = localtime(&tnow);
+    char* buf = (char*)malloc(100);
+    strftime(buf,100,"/172.18.218.19.%H.log",p);
+    return buf;
+    free(buf);
+}
+
+/*
+ *set file parent path template:/%Y-%m-%d/
+ */
+char* generateparentpath(time_t tnow) {
+    struct tm* p = localtime(&tnow);
+    char* buf = (char*)malloc(100);
+    strftime(buf,100,"/rsyslogtest/%Y-%m-%d",p);
     return buf;
     free(buf);
 }
@@ -63,8 +73,9 @@ void usage(const char * cmd)
 }
 
 int main(int argc, char *argv[]) {
-	
-    char* filename = generatefilename();
+	time_t init_time = time(NULL);
+    char* filename = generatefilename(init_time);
+    char* logpath = generateparentpath(init_time);
     char* hostname;
     int portnum;
     char* username;
@@ -75,12 +86,19 @@ int main(int argc, char *argv[]) {
             case 'd':
                 hostname = optarg;
                 break;
+            
             case 'p':
-                portnum = atoi(optarg);
+                if ( atoi(optarg) < 1024 || atoi(optarg) > 65535 ) {
+                    portnum = 8020;
+                } else {
+                    portnum = atoi(optarg);
+                }
                 break;
+
             case 'u':
                 username = optarg;
                 break;
+            
             case 'h':
             default:
                 usage(argv[0]);
@@ -89,26 +107,38 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    char *file_t = strdup(filename);
-	char *path = dirname(file_t);
-	printf("dirname %s \nfilename %s\n", path, filename);
-
+//    char *file_t = strdup(filename);
+//	char *path = dirname(file_t);
+//	printf("dirname %s \nfilename %s\n", path, filename);
+    
     /* produce a hdfs connection !!*/
     hdfsFS fs = hdfsConnectAsUser(hostname, portnum, username);
 	if(fs == NULL){
 		printf("please specify a correct hadoop connection\n");
 	}
 	
-    /*  hdfs file exists? */
+    /* make the log directory depending on current date */
+    int mk = hdfsCreateDirectory( fs, logpath);
+    printf("%d,%d\n",__LINE__,mk);
+    if (mk != 0) {
+        fprintf(stderr,"can't make the log directory!!");
+    } else {
+        printf("current day's log directory is %s\n",logpath);
+        
+    }
+
+    char* filepath=strcat(logpath,filename);
+    printf("%d,%s,%s\n",__LINE__,filename,filepath);
+  //  hdfs file exists?
     int re;
-	re = HDFSFileExists(fs, filename);
+	re = HDFSFileExists(fs, filepath);
     if(re == 1) {
         printf("file path exits!!\n");
     }
-	free(file_t);
+//	free(file_t);
     
-    /*open a hdfs file depending on the value of re */
-    hdfsFile fh = HDFSopenfile(fs, filename, re);
+    //open a hdfs file depending on the value of re
+    hdfsFile fh = HDFSopenfile(fs, filepath, re);
 	if (fh == NULL) {
 		printf("error open return\n");
 		exit(-1);
@@ -120,19 +150,43 @@ int main(int argc, char *argv[]) {
     }
     char* mbuf=rbuf;
 
-    /* loop read stdin and write into hdfs file until fgets encounts NULL !*/
+    // loop read stdin and write into hdfs file until fgets encounts NULL !
     while((fgets(mbuf, 1024, stdin)) != NULL ) {
-	    hdfsWrite(fs, fh, (void*)rbuf, strlen(rbuf));
-        int le;
-        le = hdfsFlush(fs, fh);
-        if (le != 0) {
-            fprintf(stderr, "Faliede to flush \n");
-        }   
+	    time_t next_time = time(NULL);
+        /* is already the next day ?*/
+        if ((init_time /86400) == (next_time/86400)) {
+            if ((init_time/3600) == (next_time)/3600) {
+                hdfsWrite(fs, fh, (void*)rbuf, strlen(rbuf));
+                hdfsFlush(fs,fh);
+                int le;
+                if(le != 0) {
+                    fprintf(stderr, "Failed to flush \n");
+                }
+            }else {
+                hdfsCloseFile(fs,fh);
+                char* currentfilepath = generateparentpath(next_time);
+                char* nextfile = generatefilename(next_time);
+                char* nextfilepath=strcat(currentfilepath,nextfile);
+                hdfsFile fh = HDFSopenfile(fs, nextfilepath, 2);
+                hdfsWrite(fs,fh,(void*)rbuf,strlen(rbuf));
+                hdfsFlush(fs,fh);
+            }
+        }else {
+                hdfsCloseFile(fs, fh); 
+                char* currentfilepath = generateparentpath(next_time);
+                char* nextfile = generatefilename(next_time);
+                char* nextfilepath=strcat(currentfilepath,nextfile);
+                hdfsCreateDirectory(fs,currentfilepath);
+                hdfsFile fh = HDFSopenfile(fs,nextfilepath, 2);
+                hdfsWrite(fs,fh,(void*)rbuf,strlen(rbuf));
+                hdfsFlush(fs,fh);
+        }
+        init_time = next_time;
     }
     free(rbuf);
 
-    /* close hdfs file and diconnect! */
+    // close hdfs file and diconnect!
     hdfsCloseFile(fs, fh);
-    hdfsDisconnect(fs);
+    hdfsDisconnect(fs);    
     return 0;
 }
