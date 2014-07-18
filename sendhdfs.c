@@ -7,39 +7,33 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <getopt.h>
-#define READSIZE 30 
-#define MAXLEN 10
 
-char* loopBufReading( char* rbuf ) 
+/*char* loopBufReading( char* rbuf ) 
 {
 	char* tmpbuf = rbuf;
-
-    int be_return = 0;
-    while(1) {
+    int count = 0;
+    while(count <= 10) {
         char* tbuf = (char*)malloc(sizeof(char*) * MAXLEN);
-		tbuf=fgets(tbuf, READSIZE, stdin);
+        tbuf=fgets(tbuf, READSIZE, stdin);
         if(tbuf!=NULL) {
-            if(READSIZE < strlen(rbuf) + strlen(tbuf)) {
-                be_return ++;
-            }
             strncpy(tmpbuf, tbuf, strlen(tbuf));
             tmpbuf += strlen(tbuf) * sizeof(*tbuf);
-			free(tbuf);
-            if(be_return > 0) {
-                return rbuf;
-            }
+            free(tbuf);
         }else{
             printf("No more input!!\n");
             return rbuf;
         }
+        count++;
     }
+    return rbuf;
 }
+*/
 
 static int
 HDFSFileExists(hdfsFS fs, const char *name) {
 	int fileExist;
 	fileExist = hdfsExists(fs, name);
-	if (fileExist >= -1) {
+	if (fileExist >=  -1) {
 		return ++fileExist;
 	} else {
 		printf("Please specify a correct hdfs file path");
@@ -64,6 +58,18 @@ hdfsFile HDFSopenfile(hdfsFS fs, const char *filename, int re) {
 	return writeFile;
 }
 
+/*
+ *set filename template:%Y-%m-%d-%H-ip.log
+ */
+char* generatefilename(void) {
+    time_t timenow = time(NULL);
+    struct tm* p = localtime(&timenow);
+    char* buf = (char*)malloc(1024);
+    strftime(buf,256,"/rsyslogtest/%Y-%m-%d-%H-172.18.218.19.log",p);
+    return buf;
+    free(buf);
+}
+
 void usage(const char * cmd)
 {
     fprintf(stderr, "Usage: %s [-h] | [-d <hostname>] \n"
@@ -73,22 +79,19 @@ void usage(const char * cmd)
             "  -d <hostname>     hdfs server hostname or ip\n"
             "  -p <portnum>       connetion port number\n"
             "  -u <username>     username for connnection\n"
-            "  -f <filename>     name of file written\n"
-            "  -s <fileMaxSize>  max written data bytes\n"
         ,cmd);
     exit(1);
 }
 
 int main(int argc, char *argv[]) {
 	
-    char* filename;
-    tSize fileMaxSize;
+    char* filename = generatefilename();
     char* hostname;
     int portnum;
     char* username;
     int opt;
 
-    while((opt = getopt(argc, argv, "hd:p:u:f:s:")) !=-1) {
+    while((opt = getopt(argc, argv, "hd:p:u:")) !=-1) {
         switch(opt) {
             case 'd':
                 hostname = optarg;
@@ -98,12 +101,6 @@ int main(int argc, char *argv[]) {
                 break;
             case 'u':
                 username = optarg;
-                break;
-            case 'f':
-                filename = optarg;
-                break;
-            case 's':
-                fileMaxSize = atoi(optarg);
                 break;
             case 'h':
             default:
@@ -123,37 +120,33 @@ int main(int argc, char *argv[]) {
 	}
 	
     int re;
-	re = HDFSFileExists(fs, path);
-    if(re = 1) {
+	re = HDFSFileExists(fs, filename);
+    if(re == 1) {
         printf("file path exits!!\n");
     }
 	free(file_t);
-	
+    
     hdfsFile fh = HDFSopenfile(fs, filename, re);
 	if (fh == NULL) {
 		printf("error open return\n");
 		exit(-1);
 	}
     
-    tSize writetotalsize=0,writesize=0;
-	while(writetotalsize < fileMaxSize) {
-        char* rbuf=(char *)malloc(sizeof(char*) * READSIZE);
-        if (rbuf == NULL) {
-            return -2;
-        }
-
-        char* mbuf;
-        mbuf = loopBufReading(rbuf);
-		writesize = hdfsWrite(fs, fh, (void*)rbuf, strlen(rbuf));
-		writetotalsize += writesize;
-        
+    char* rbuf=(char *)malloc(sizeof(char*) * 1024);
+    if (rbuf == NULL) {
+        return -2;
+    }
+    char* mbuf=rbuf;
+    while((fgets(mbuf, 1024, stdin)) != NULL ) {
+	    hdfsWrite(fs, fh, (void*)rbuf, strlen(rbuf));
         int le;
         le = hdfsFlush(fs, fh);
         if (le != 0) {
-            fprintf(stderr, "Failed to flush \n");
-        }
-        free(rbuf);
+            fprintf(stderr, "Faliede to flush \n");
+        }   
     }
+    free(rbuf);
+
     hdfsCloseFile(fs, fh);
     hdfsDisconnect(fs);
     return 0;
