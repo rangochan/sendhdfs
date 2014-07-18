@@ -8,27 +8,6 @@
 #include <stdbool.h>
 #include <getopt.h>
 
-/*char* loopBufReading( char* rbuf ) 
-{
-	char* tmpbuf = rbuf;
-    int count = 0;
-    while(count <= 10) {
-        char* tbuf = (char*)malloc(sizeof(char*) * MAXLEN);
-        tbuf=fgets(tbuf, READSIZE, stdin);
-        if(tbuf!=NULL) {
-            strncpy(tmpbuf, tbuf, strlen(tbuf));
-            tmpbuf += strlen(tbuf) * sizeof(*tbuf);
-            free(tbuf);
-        }else{
-            printf("No more input!!\n");
-            return rbuf;
-        }
-        count++;
-    }
-    return rbuf;
-}
-*/
-
 static int
 HDFSFileExists(hdfsFS fs, const char *name) {
 	int fileExist;
@@ -72,7 +51,7 @@ char* generatefilename(void) {
 
 void usage(const char * cmd)
 {
-    fprintf(stderr, "Usage: %s [-h] | [-d <hostname>] \n"
+    fprintf(stderr, "Usage: %s [-h] | [-d <hostname>] | [-p <portnum>] | [-u hadoop]\n"
             "\n"
             " Options:\n"
             "  -h                print this help message\n"
@@ -114,11 +93,13 @@ int main(int argc, char *argv[]) {
 	char *path = dirname(file_t);
 	printf("dirname %s \nfilename %s\n", path, filename);
 
+    /* produce a hdfs connection !!*/
     hdfsFS fs = hdfsConnectAsUser(hostname, portnum, username);
 	if(fs == NULL){
 		printf("please specify a correct hadoop connection\n");
 	}
 	
+    /*  hdfs file exists? */
     int re;
 	re = HDFSFileExists(fs, filename);
     if(re == 1) {
@@ -126,6 +107,7 @@ int main(int argc, char *argv[]) {
     }
 	free(file_t);
     
+    /*open a hdfs file depending on the value of re */
     hdfsFile fh = HDFSopenfile(fs, filename, re);
 	if (fh == NULL) {
 		printf("error open return\n");
@@ -137,6 +119,8 @@ int main(int argc, char *argv[]) {
         return -2;
     }
     char* mbuf=rbuf;
+
+    /* loop read stdin and write into hdfs file until fgets encounts NULL !*/
     while((fgets(mbuf, 1024, stdin)) != NULL ) {
 	    hdfsWrite(fs, fh, (void*)rbuf, strlen(rbuf));
         int le;
@@ -147,6 +131,7 @@ int main(int argc, char *argv[]) {
     }
     free(rbuf);
 
+    /* close hdfs file and diconnect! */
     hdfsCloseFile(fs, fh);
     hdfsDisconnect(fs);
     return 0;
