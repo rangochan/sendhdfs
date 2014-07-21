@@ -24,10 +24,10 @@ hdfsFile HDFSopenfile(hdfsFS fs, const char *filename, int re) {
 	hdfsFile writeFile;
 	if (re == 1) {
 		printf(" file existing ,and append data to it \n");
-		writeFile = hdfsOpenFile(fs, filename, O_WRONLY | O_APPEND, 3, 3, 1024);
+		writeFile = hdfsOpenFile(fs, filename, O_WRONLY | O_APPEND, 1024, 0, 0);
 	} else {
 		printf(" file is not existing, and create a new file \n");
-		writeFile = hdfsOpenFile(fs, filename, O_WRONLY, 3, 3, 1024);
+		writeFile = hdfsOpenFile(fs, filename, O_WRONLY, 1024, 0, 0);
 	}
 
 	if (writeFile == NULL) {
