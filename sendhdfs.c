@@ -37,9 +37,7 @@ hdfsFile HDFSopenfile(hdfsFS fs, const char *filename, int re) {
 	return writeFile;
 }
 
-/*
- *set filename template:ip.%H.log
- */
+/* set filename template:ip.%H.log */
 char* generatefilename(time_t tnow) {
     struct tm* p = localtime(&tnow);
     char* buf = (char*)malloc(100);
@@ -48,9 +46,7 @@ char* generatefilename(time_t tnow) {
     free(buf);
 }
 
-/*
- *set file parent path template:/%Y-%m-%d/
- */
+/* set file parent path template:/%Y-%m-%d/ */
 char* generatepath(time_t tnow) {
     struct tm* p = localtime(&tnow);
     char* buf = (char*)malloc(100);
@@ -122,8 +118,10 @@ int main(int argc, char *argv[]) {
         printf("current day's log directory is %s\n",logpath);
         
     }
-
+    
+    /* hdfs file's absolute path */
     char* filepath=strcat(logpath,filename);
+
     /* hdfs file exists? */
     int re;
 	re = HDFSFileExists(fs, filepath);
@@ -150,6 +148,7 @@ int main(int argc, char *argv[]) {
 
         /* is already the next day ?*/
         if ((init_time /86400) == (next_time/86400)) {
+
             /* is already the next hour ? */
             if ((init_time/3600) == (next_time)/3600) {
                 hdfsWrite(fs, fh, (void*)rbuf, strlen(rbuf));
