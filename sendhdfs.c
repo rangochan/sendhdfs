@@ -28,10 +28,10 @@ hdfsFile HDFSopenfile(hdfsFS fs, const char *filename, int re) {
 	hdfsFile writeFile;
 	if (re == 1) {
 		printf(" file exists ,and append data to it \n");
-		writeFile = hdfsOpenFile(fs, filename, O_WRONLY | O_APPEND, 1024, 0, 0);
+		writeFile = hdfsOpenFile(fs, filename, O_WRONLY | O_APPEND, 3, 3, 1024);
 	} else {
 		printf(" file not exists, and create a new file \n");
-		writeFile = hdfsOpenFile(fs, filename, O_WRONLY, 1024, 0, 0);
+		writeFile = hdfsOpenFile(fs, filename, O_WRONLY, 3, 3, 1024);
 	}
 
 	if (writeFile == NULL) {
@@ -159,43 +159,60 @@ int main(int argc, char *argv[]) {
     while((fgets(mbuf, 4096, stdin)) != NULL ) {
 	    time_t next_time = time(NULL);
         
-		/* whether encount a newline ? */
         if ((strchr(mbuf, '\n')) != NULL) {
             /* is already the next day ?*/
             if ((init_time /86400) == (next_time/86400)) {
                 /* is already the next hour ? */
                 if ((init_time/3600) == (next_time)/3600) {
+                    /* check whether file is writable! */
+                    if((hdfsFileIsOpenForWrite(fh)) == 1) {
+                        printf("file is writable!\n");   
+                    }else {
+                        printf("file is not writable!\n");
+                    }
+                    
                     hdfsWrite(fs, fh, (void*)rbuf, strlen(rbuf));
-                    hdfsFlush(fs,fh);
+                    hdfsHFlush(fs,fh);
                     int le;
                     if(le != 0) {
                         fprintf(stderr, "Failed to flush \n");
                     }
                 }else {
-                    hdfsFlush(fs, fh);
-                    hdfsCloseFile(fs,fh);
+                    int closeflag = hdfsCloseFile(fs,fh);
+                    if(closeflag != 0) {
+                        fprintf(stderr, "fail to close!\n");
+                    }else {
+                        printf("file closed!!\n");
+                    }
+
                     char* curfilepath = generatepath(next_time);
                     char* nextfile = generatefilename(next_time);
                     char* nextfilepath=strcat(curfilepath,nextfile);
 
-                    hdfsFile fh = HDFSopenfile(fs, nextfilepath, 2);
+                    fh = HDFSopenfile(fs, nextfilepath, 2);
                     hdfsWrite(fs,fh,(void*)rbuf,strlen(rbuf));
-                    hdfsFlush(fs,fh);
+                    hdfsHFlush(fs,fh);
                 }
             }else {
-                    hdfsCloseFile(fs, fh); 
+                    int flagclose = hdfsCloseFile(fs, fh);
+                    if(flagclose != 0) {
+                        fprintf(stderr, "Failed to close!\n");
+                    }else {
+                        printf("file closed!!\n");
+                    }
+
                     char* curfilepath = generatepath(next_time);
                     char* nextfile = generatefilename(next_time);
                     char* nextfilepath=strcat(curfilepath,nextfile);
 
                     hdfsCreateDirectory(fs,curfilepath);
-                    hdfsFile fh = HDFSopenfile(fs,nextfilepath, 2);
+                    fh = HDFSopenfile(fs,nextfilepath, 2);
                     hdfsWrite(fs,fh,(void*)rbuf,strlen(rbuf));
-                    hdfsFlush(fs,fh);
+                    hdfsHFlush(fs,fh);
             }
         }else {
             hdfsWrite(fs, fh, (void*)rbuf, strlen(rbuf));
-            hdfsFlush(fs, fh);
+            hdfsHFlush(fs, fh);
         }
         init_time = next_time;
     }
