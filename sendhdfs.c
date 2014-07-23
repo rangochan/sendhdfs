@@ -83,12 +83,10 @@ void usage(const char * cmd)
 }
 
 int main(int argc, char *argv[]) {
-	time_t init_time = time(NULL);
-    char* filename = generatefilename(init_time);
-    char* logpath = generatepath(init_time);
+    
     char* hostname;
     int portnum;
-    char* username;
+    char* username="hadoop";
     int opt;
 
     while((opt = getopt(argc, argv, "hd:p:u:")) !=-1) {
@@ -124,6 +122,9 @@ int main(int argc, char *argv[]) {
 	}
 	
     /* make the log directory depending on current date */
+	time_t init_time = time(NULL);
+    char* filename = generatefilename(init_time);
+    char* logpath = generatepath(init_time);
     int mk = hdfsCreateDirectory( fs, logpath);
     if (mk != 0) {
         fprintf(stderr,"can't make the log directory!!");
@@ -187,9 +188,9 @@ int main(int argc, char *argv[]) {
 
                     char* curfilepath = generatepath(next_time);
                     char* nextfile = generatefilename(next_time);
-                    char* nextfilepath=strcat(curfilepath,nextfile);
+                    strcat(curfilepath,nextfile);
 
-                    fh = HDFSopenfile(fs, nextfilepath, 2);
+                    fh = HDFSopenfile(fs, curfilepath, 2);
                     hdfsWrite(fs,fh,(void*)rbuf,strlen(rbuf));
                     hdfsHFlush(fs,fh);
                 }
@@ -202,11 +203,12 @@ int main(int argc, char *argv[]) {
                     }
 
                     char* curfilepath = generatepath(next_time);
-                    char* nextfile = generatefilename(next_time);
-                    char* nextfilepath=strcat(curfilepath,nextfile);
-
                     hdfsCreateDirectory(fs,curfilepath);
-                    fh = HDFSopenfile(fs,nextfilepath, 2);
+                    
+                    char* nextfile = generatefilename(next_time);
+                    strcat(curfilepath,nextfile);
+                    fh = HDFSopenfile(fs,curfilepath, 2);
+
                     hdfsWrite(fs,fh,(void*)rbuf,strlen(rbuf));
                     hdfsHFlush(fs,fh);
             }
