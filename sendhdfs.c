@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
     /* loop read stdin and write into hdfs file until fgets encounts NULL ! */
     while((fgets(mbuf, 4096, stdin)) != NULL ) {
 	    time_t next_time = time(NULL);
-        
+        /* whether encount a newline? */        
         if ((strchr(mbuf, '\n')) != NULL) {
             /* is already the next day ?*/
             if ((init_time /86400) == (next_time/86400)) {
