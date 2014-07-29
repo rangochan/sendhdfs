@@ -65,6 +65,12 @@ char* tpltostr(char* str) {
                                 char flag_mi[] = "%M";
                                 char* min = timestr(flag_mi);
                                 proper[i] = min;
+                            } else {
+                                if( (strcmp(proper[i], "DATE")) == 0 ) {
+                                    char flag_da[] = "%D";
+                                    char* date = timestr(flag_da);
+                                    proper[i] = date;
+                                }
                             }
                         }
                     }
@@ -85,7 +91,7 @@ char* tpltostr(char* str) {
 }
 
 int main() {
-    char* str="rsyslog.$HOSTNAME$.$PID$.$YEAR$.$MONTH$.$DAY$.$MINUTE$.log";
+    char* str="rsyslog.$HOSTNAME$.$PID$.$YEAR$.$MONTH$.$DAY$.$MINUTE$.$DATE$.log";
     char* string = tpltostr(str);
     printf("%s\n", string);
     free(string);
