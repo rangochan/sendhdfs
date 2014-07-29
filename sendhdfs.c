@@ -11,6 +11,81 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <time.h>
+
+char* timestr(char* flag) {    
+	time_t timenow = time(NULL);    
+	struct tm* p = localtime(&timenow);    
+	char tmpbuf[56];    
+	strftime(tmpbuf, 28,flag,p);    
+	char* buf = strdup(tmpbuf);    
+	return buf;
+}
+
+/* convert template into string */
+char* tpltostr(char* str) {        
+	char* proper[100];    
+	int i = 0;    
+	char* p = "$";    
+	char* buf = strdup(str);    
+	char* token;    
+	for( token = strsep(&buf, p); token != NULL; token = strsep(&buf, p)) {              
+		proper[i] = token;                
+		/* convert property into value */        
+		if( (strcmp(proper[i], "HOSTNAME")) == 0 ) {            
+			char hostname[128];            
+			gethostname(hostname,sizeof(hostname));            
+			proper[i] = strdup(hostname);        
+			}else {            
+				if( (strcmp(proper[i], "PID")) == 0) {                
+					int pid = getpid();                
+					char pidc[25];                
+					sprintf(pidc, "%d", pid);                
+					proper[i] = strdup(pidc);            
+				} else {                
+					if( (strcmp(proper[i], "YEAR")) == 0 ) {                    
+						char flag_y[] = "%Y";                    
+						char* year = timestr(flag_y);                    
+						proper[i] = year;                
+					} else {                    
+						if( (strcmp(proper[i], "MONTH")) == 0 ) {                        
+							char flag_m[] = "%m";                        
+							char* month = timestr(flag_m);                        
+							proper[i] = month;                    
+						} else {                        
+							if( (strcmp(proper[i], "DAY")) == 0 ) {                            
+								char flag_d[] = "%d";                            
+								char* day = timestr(flag_d);                            
+								proper[i] = day;                        
+							} else {                            
+								if( (strcmp(proper[i], "MINUTE")) == 0 ) {                                
+									char flag_mi[] = "%M";                                
+									char* min = timestr(flag_mi);                                
+									proper[i] = min;                            
+								} else {                                
+									if( (strcmp(proper[i], "DATE")) == 0 ) {                                    
+										char flag_da[] = "%D";                                    
+										char* date = timestr(flag_da);                                    
+										proper[i] = date;                                
+									}                            
+								}                       
+							}                    
+						}                
+					}            
+				}           
+			}        
+		i++;    
+	}
+
+	int j = 0;    
+	char* tmp =(char*)malloc(1024);    
+	for( j; j< i; j++ )        
+		strcat(tmp, proper[j]);    
+
+	free(buf);    
+	return tmp;
+}
+
 
 static int
 HDFSFileExists(hdfsFS fs, const char *name) {
@@ -41,34 +116,6 @@ hdfsFile HDFSopenfile(hdfsFS fs, const char *filename, int re) {
 	return writeFile;
 }
 
-/* set filename template:ip-%H.log */
-char* generatefilename(time_t tnow) {
-    struct tm* p = localtime(&tnow);
-    char buf[32];
-    strftime(buf,32,"-%H.log",p);
-    
-    /* get local machine's hostname and ip address!! */
-    char hname[128];
-    struct hostent* hent;
-    gethostname(hname, sizeof(hname));
-    hent = gethostbyname(hname);
-    char* ipaddr =(char*)malloc(128);
-    ipaddr = inet_ntoa(*(struct in_addr*)(hent->h_addr_list[0]));
-    strcat(ipaddr,buf);
-    return ipaddr;
-    free(ipaddr);
-}
-
-/* set file parent path template:/%Y-%m-%d/ */
-char* generatepath(time_t tnow) {
-    struct tm* p = localtime(&tnow);
-    char* buf = (char*)malloc(100);
-    strftime(buf,100,"/rsyslogtest/%Y-%m-%d/",p);
-    return buf;
-    free(buf);
-}
-
-/* get local machine's hostname and ip address!! */
 void usage(const char * cmd)
 {
     fprintf(stderr, "Usage: %s [-h] | [-d <hostname>] | [-p <portnum>] | [-u hadoop]\n"
@@ -78,6 +125,7 @@ void usage(const char * cmd)
             "  -d <hostname>     hdfs server hostname or ip\n"
             "  -p <portnum>       connetion port number\n"
             "  -u <username>     username for connnection\n"
+            "  -t <filetemplatename> file template name\n"
         ,cmd);
     exit(1);
 }
@@ -88,6 +136,7 @@ int main(int argc, char *argv[]) {
     int portnum;
     char* username="hadoop";
     int opt;
+	char* filetpl;
 
     while((opt = getopt(argc, argv, "hd:p:u:")) !=-1) {
         switch(opt) {
@@ -106,6 +155,10 @@ int main(int argc, char *argv[]) {
             case 'u':
                 username = optarg;
                 break;
+
+			case 't':
+				filetpl = optarg;
+				break;
             
             case 'h':
             default:
@@ -120,31 +173,19 @@ int main(int argc, char *argv[]) {
 	if(fs == NULL){
 		printf("please specify a correct hadoop connection\n");
 	}
-	
-    /* make the log directory depending on current date */
-	time_t init_time = time(NULL);
-    char* filename = generatefilename(init_time);
-    char* logpath = generatepath(init_time);
-    int mk = hdfsCreateDirectory( fs, logpath);
-    if (mk != 0) {
-        fprintf(stderr,"can't make the log directory!!");
-    } else {
-        printf("current day's log directory is %s\n",logpath);
-        
-    }
-    
-    /* hdfs file's absolute path */
-    char* filepath=strcat(logpath,filename);
+
+	/* convert filetemplatename into filename */
+	char* filename = tpltostr(filetpl);
 
     /* hdfs file exists? */
     int re;
-	re = HDFSFileExists(fs, filepath);
+	re = HDFSFileExists(fs, filename);
     if(re == 1) {
         printf("file path exits!!\n");
     }
     
     /* open a hdfs file depending on the value of re */
-    hdfsFile fh = HDFSopenfile(fs, filepath, re);
+    hdfsFile fh = HDFSopenfile(fs, filename, re);
 	if (fh == NULL) {
 		printf("error open return\n");
 		exit(-1);
@@ -156,71 +197,18 @@ int main(int argc, char *argv[]) {
     }
     char* mbuf=rbuf;
 
+//	char* newfile;
     /* loop read stdin and write into hdfs file until fgets encounts NULL ! */
     while((fgets(mbuf, 4096, stdin)) != NULL ) {
-	    time_t next_time = time(NULL);
+	 
         /* whether encount a newline? */        
         if ((strchr(mbuf, '\n')) != NULL) {
-            /* is already the next day ?*/
-            if ((init_time /86400) == (next_time/86400)) {
-                /* is already the next hour ? */
-                if ((init_time/3600) == (next_time)/3600) {
-                    /* check whether file is writable! */
-                    if((hdfsFileIsOpenForWrite(fh)) == 1) {
-                        printf("file is writable!\n");   
-                    }else {
-                        printf("file is not writable!\n");
-                    }
-                    
-                    hdfsWrite(fs, fh, (void*)rbuf, strlen(rbuf));
-                    hdfsHFlush(fs,fh);
-                    int le;
-                    if(le != 0) {
-                        fprintf(stderr, "Failed to flush \n");
-                    }
-                }else {
-                    int closeflag = hdfsCloseFile(fs,fh);
-                    if(closeflag != 0) {
-                        fprintf(stderr, "fail to close!\n");
-                    }else {
-                        printf("file closed!!\n");
-                    }
-
-                    char* curfilepath = generatepath(next_time);
-                    char* nextfile = generatefilename(next_time);
-                    strcat(curfilepath,nextfile);
-
-                    fh = HDFSopenfile(fs, curfilepath, 2);
-                    hdfsWrite(fs,fh,(void*)rbuf,strlen(rbuf));
-                    hdfsHFlush(fs,fh);
-                }
-            }else {
-                    int flagclose = hdfsCloseFile(fs, fh);
-                    if(flagclose != 0) {
-                        fprintf(stderr, "Failed to close!\n");
-                    }else {
-                        printf("file closed!!\n");
-                    }
-
-                    char* curfilepath = generatepath(next_time);
-                    hdfsCreateDirectory(fs,curfilepath);
-                    
-                    char* nextfile = generatefilename(next_time);
-                    strcat(curfilepath,nextfile);
-                    fh = HDFSopenfile(fs,curfilepath, 2);
-
-                    hdfsWrite(fs,fh,(void*)rbuf,strlen(rbuf));
-                    hdfsHFlush(fs,fh);
-            }
-        }else {
             hdfsWrite(fs, fh, (void*)rbuf, strlen(rbuf));
-            hdfsHFlush(fs, fh);
-        }
-        init_time = next_time;
+			hdfsHFlush(fs, fh);
     }
     free(rbuf);
 
-    /* close hdfs file and diconnect! */
+    /* close hdfs file and disconnect! */
     hdfsCloseFile(fs, fh);
     hdfsDisconnect(fs);    
     return 0;
