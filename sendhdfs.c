@@ -26,7 +26,7 @@ char* timestr(char* flag) {
 char* tpltostr(char* str) {        
 	char* proper[100];    
 	int i = 0;    
-	char* p = "$";    
+	char* p = "%";    
 	char* buf = strdup(str);    
 	char* token;    
 	for( token = strsep(&buf, p); token != NULL; token = strsep(&buf, p)) {              
@@ -79,8 +79,10 @@ char* tpltostr(char* str) {
 
 	int j = 0;    
 	char* tmp =(char*)malloc(1024);    
-	for( j; j< i; j++ )        
-		strcat(tmp, proper[j]);    
+	for( j; j< i; j++ ) {        
+		strcat(tmp, proper[j]);
+		free(proper[j]);
+	}
 
 	free(buf);    
 	return tmp;
@@ -137,8 +139,9 @@ int main(int argc, char *argv[]) {
     char* username="hadoop";
     int opt;
 	char* filetpl;
-
-    while((opt = getopt(argc, argv, "hd:p:u:")) !=-1) {
+	char* filename = NULL;
+	
+    while((opt = getopt(argc, argv, "hd:p:u:t:")) !=-1) {
         switch(opt) {
             case 'd':
                 hostname = optarg;
@@ -168,14 +171,14 @@ int main(int argc, char *argv[]) {
         }
     }
     
+	/* convert filetemplatename into filename */
+	filename = tpltostr(filetpl);
+	
     /* produce a hdfs connection !!*/
     hdfsFS fs = hdfsConnectAsUser(hostname, portnum, username);
 	if(fs == NULL){
 		printf("please specify a correct hadoop connection\n");
 	}
-
-	/* convert filetemplatename into filename */
-	char* filename = tpltostr(filetpl);
 
     /* hdfs file exists? */
     int re;
