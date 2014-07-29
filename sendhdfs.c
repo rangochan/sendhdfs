@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
             case 'u':
                 username = optarg;
                 break;
-
+			
 			case 't':
 				filetpl = optarg;
 				break;
