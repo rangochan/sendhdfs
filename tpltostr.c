@@ -11,90 +11,81 @@
 #include <unistd.h>
 #include <netdb.h>
 #include <sys/socket.h>
+#include <time.h>
 
-/* string replace */
-char* strreplace(char* src, char* sub, char* dst) {
-    char *p, *p1;
-    int len;
-                
-    if ((src == NULL) || (sub == NULL) || (dst == NULL)) 
-        return NULL;
-
-    while( (strstr(src, sub)) != NULL) {
-        p = strstr(src, sub);
-        len = strlen(src) + strlen(dst) - strlen(sub);
-        p1 = malloc(len);
-        bzero(p1, len);
-        strncpy(p1, src, p - src);
-        strcat(p1, dst);
-        p += strlen(sub);
-        strcat(p1, p);
-        src = p1;
-    }
-    return src;
+char* timestr(char* flag) {
+    time_t timenow = time(NULL);
+    struct tm* p = localtime(&timenow);
+    char tmpbuf[56];
+    strftime(tmpbuf, 28,flag,p);
+    char* buf = strdup(tmpbuf);
+    return buf;
 }
 
 /* convert template into string */
 char* tpltostr(char* str) {
     
-    char* proper[10];
-    char* prop[10];
+    char* proper[100];
     int i = 0;
     char* p = "$";
-    char s[128];
-    char ss[128];
-    char* tmp = strdup(str);
-    
-    while((strchr(str, '$')) != NULL) {
-        /* obtain every property whose format is "$PROPERTY$" */
-        sscanf(str,"%*[^$]$%[^$]",s);
-        proper[i] = s;
+    char* buf = strdup(str);
+    char* token;
+
+    for( token = strsep(&buf, p); token != NULL; token = strsep(&buf, p)) {      
+        proper[i] = token;
         
         /* convert property into value */
         if( (strcmp(proper[i], "HOSTNAME")) == 0 ) {
             char hostname[128];
             gethostname(hostname,sizeof(hostname));
-            proper[i] = hostname;
+            proper[i] = strdup(hostname);
         }else {
-            printf("not support this property!!\n");
+            if( (strcmp(proper[i], "PID")) == 0) {
+                int pid = getpid();
+                char pidc[25];
+                sprintf(pidc, "%d", pid);
+                proper[i] = strdup(pidc);
+            } else {
+                if( (strcmp(proper[i], "YEAR")) == 0 ) {
+                    char flag_y[] = "%Y";
+                    char* year = timestr(flag_y);
+                    proper[i] = year;
+                } else {
+                    if( (strcmp(proper[i], "MONTH")) == 0 ) {
+                        char flag_m[] = "%m";
+                        char* month = timestr(flag_m);
+                        proper[i] = month;
+                    } else {
+                        if( (strcmp(proper[i], "DAY")) == 0 ) {
+                            char flag_d[] = "%d";
+                            char* day = timestr(flag_d);
+                            proper[i] = day;
+                        } else {
+                            if( (strcmp(proper[i], "MINUTE")) == 0 ) {
+                                char flag_mi[] = "%M";
+                                char* min = timestr(flag_mi);
+                                proper[i] = min;
+                            }
+                        }
+                    }
+                }
+            }   
         }
-    
-        strcpy(ss, s);
-        char* propt = (char*)malloc(128);
-        memset(propt, '\0',128);
-        propt[0]='$';
-        strcat(ss, p);
-        strcat(propt,ss);
-        prop[i] = strdup(propt);
-        
-        free(propt);
-        propt = NULL;
-        
-        char* pos1 = strstr(str, ss);
-        pos1 += strlen(ss);
-        str = pos1;
-        
         i++;
     }
-    
+
     int j = 0;
-    char* new;
-    
-    for( j; j< i; j++) {
-        new = strreplace(tmp, prop[j], proper[j]);
-        tmp = new;
+    char* tmp =(char*)malloc(1024);
+    for( j; j< i; j++ ) {
+        strcat(tmp, proper[j]);
     }
 
-    int k = 0;
-    for ( k; k < i; k++ )
-        free(prop[k]);
-
-    return new;
+    free(buf);
+    return tmp;
 }
 
 int main() {
-    char* str = (char*)malloc(512);
-    str = "/rsyslog.$HOSTNAME$.$USER$.log";
+    char* str="rsyslog.$HOSTNAME$.$PID$.$YEAR$.$MONTH$.$DAY$.$MINUTE$.log";
     char* string = tpltostr(str);
     printf("%s\n", string);
     free(string);
