@@ -27,12 +27,12 @@ char* tpltostr(char* str) {
     
     char* proper[100];
     int i = 0;
-    char* p = "$";
+    char* p = "%";
     char* buf = strdup(str);
     char* token;
 
     for( token = strsep(&buf, p); token != NULL; token = strsep(&buf, p)) {      
-        proper[i] = token;
+        proper[i] = strdup(token);
         
         /* convert property into value */
         if( (strcmp(proper[i], "HOSTNAME")) == 0 ) {
@@ -84,14 +84,15 @@ char* tpltostr(char* str) {
     char* tmp =(char*)malloc(1024);
     for( j; j< i; j++ ) {
         strcat(tmp, proper[j]);
+		free(proper[j]);
     }
-
+	
     free(buf);
     return tmp;
 }
 
 int main() {
-    char* str="rsyslog.$HOSTNAME$.$PID$.$YEAR$.$MONTH$.$DAY$.$MINUTE$.$DATE$.log";
+    char* str="rsyslog.%HOSTNAME%.%PID%.%YEAR%.%MONTH%.%DAY%.%MINUTE%.%DATE%.log";
     char* string = tpltostr(str);
     printf("%s\n", string);
     free(string);
