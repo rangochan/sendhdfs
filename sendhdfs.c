@@ -23,71 +23,80 @@ char* timestr(char* flag) {
 }
 
 /* convert template into string */
-char* tpltostr(char* str) {        
-	char* proper[100];    
-	int i = 0;    
-	char* p = "%";    
-	char* buf = strdup(str);    
-	char* token;    
-	for( token = strsep(&buf, p); token != NULL; token = strsep(&buf, p)) {              
-		proper[i] = token;                
-		/* convert property into value */        
-		if( (strcmp(proper[i], "HOSTNAME")) == 0 ) {            
-			char hostname[128];            
-			gethostname(hostname,sizeof(hostname));            
-			proper[i] = strdup(hostname);        
-			}else {            
-				if( (strcmp(proper[i], "PID")) == 0) {                
-					int pid = getpid();                
-					char pidc[25];                
-					sprintf(pidc, "%d", pid);                
-					proper[i] = strdup(pidc);            
-				} else {                
-					if( (strcmp(proper[i], "YEAR")) == 0 ) {                    
-						char flag_y[] = "%Y";                    
-						char* year = timestr(flag_y);                    
-						proper[i] = year;                
-					} else {                    
-						if( (strcmp(proper[i], "MONTH")) == 0 ) {                        
-							char flag_m[] = "%m";                        
-							char* month = timestr(flag_m);                        
-							proper[i] = month;                    
-						} else {                        
-							if( (strcmp(proper[i], "DAY")) == 0 ) {                            
-								char flag_d[] = "%d";                            
-								char* day = timestr(flag_d);                            
-								proper[i] = day;                        
-							} else {                            
-								if( (strcmp(proper[i], "MINUTE")) == 0 ) {                                
-									char flag_mi[] = "%M";                                
-									char* min = timestr(flag_mi);                                
-									proper[i] = min;                            
-								} else {                                
-									if( (strcmp(proper[i], "DATE")) == 0 ) {                                    
-										char flag_da[] = "%D";                                    
-										char* date = timestr(flag_da);                                    
-										proper[i] = date;                                
-									}                            
-								}                       
-							}                    
-						}                
-					}            
-				}           
-			}        
-		i++;    
-	}
+char* tpltostr(char* str) {
 
-	int j = 0;    
-	char* tmp =(char*)malloc(1024);    
-	for( j; j< i; j++ ) {        
-		strcat(tmp, proper[j]);
-		free(proper[j]);
-	}
+        char* proper[100];
+        int i = 0;
+        char* p = "%";
+        char* str_buf = strdup(str);
+        char* token;
+        
+        for( token = strsep(&str_buf, p); token != NULL; token = strsep(&str_buf, p)) {
+            proper[i] = strdup(token);
 
-	free(buf);    
-	return tmp;
+            /* convert property into value */
+            if( (strcmp(proper[i], "HOSTNAME")) == 0 ) {
+                char hostname[128];
+                gethostname(hostname,sizeof(hostname));
+                proper[i] = strdup(hostname);
+            }else {
+                if( (strcmp(proper[i], "PID")) == 0) {
+                    int pid = getpid();
+                    char pidc[25];
+                    sprintf(pidc, "%d", pid);
+                    proper[i] = strdup(pidc);
+                } else {
+                    if( (strcmp(proper[i], "YEAR")) == 0 ) {
+                        char flag_y[] = "%Y";
+                        char* year = timestr(flag_y);
+                        proper[i] = year;
+                    } else {
+                        if( (strcmp(proper[i], "MONTH")) == 0 ) {
+                            char flag_m[] = "%m";
+                            char* month = timestr(flag_m);
+                            proper[i] = month;
+                        } else {
+                            if( (strcmp(proper[i], "DAY")) == 0 ) {
+                                char flag_d[] = "%d";
+                                char* day = timestr(flag_d);
+                                proper[i] = day;
+                            } else {
+                                if( (strcmp(proper[i], "MINUTE")) == 0 ) {
+                                    char flag_mi[] = "%M";
+                                    char* min = timestr(flag_mi);
+                                    proper[i] = min;
+                                } else {
+                                    if( (strcmp(proper[i], "DATE")) == 0 ) {
+                                        char flag_date[] = "%F";
+                                        char* date = timestr(flag_date);
+                                        proper[i] = date;
+                                    } else {
+                                        if ( (strcmp(proper[i], "HOUR")) == 0 ) {
+                                            char flag_h[] = "%H";
+                                            char* hour = timestr(flag_h);
+                                            proper[i] = hour;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            i++;
+        }
+
+        int j = 0;
+        char* tmp =(char*)malloc(1024);
+        memset(tmp,'\0',1024);
+        for( j; j< i; j++ ) {
+            strcat(tmp, proper[j]);
+            free(proper[j]);
+        }
+        free(str_buf);
+
+        return tmp;
 }
-
 
 static int
 HDFSFileExists(hdfsFS fs, const char *name) {
@@ -138,9 +147,10 @@ int main(int argc, char *argv[]) {
     int portnum;
     char* username="hadoop";
     int opt;
-	char* filetpl;
-	char* filename = NULL;
-	
+	char* filetpl = NULL; 
+    char* filename;
+    char* newfilename; 
+    
     while((opt = getopt(argc, argv, "hd:p:u:t:")) !=-1) {
         switch(opt) {
             case 'd':
@@ -158,9 +168,9 @@ int main(int argc, char *argv[]) {
             case 'u':
                 username = optarg;
                 break;
-			
+
 			case 't':
-				filetpl = optarg;
+                filetpl = optarg;
 				break;
             
             case 'h':
@@ -170,16 +180,17 @@ int main(int argc, char *argv[]) {
                 break;
         }
     }
-    
-	/* convert filetemplatename into filename */
-	filename = tpltostr(filetpl);
 	
-    /* produce a hdfs connection !!*/
+    /* convert filetemplatename into filename */ 
+    filename = strdup(tpltostr(filetpl)); 
+    printf("%s\n", filename);
+    
+    /* produce a hdfs connection !! */
     hdfsFS fs = hdfsConnectAsUser(hostname, portnum, username);
 	if(fs == NULL){
 		printf("please specify a correct hadoop connection\n");
 	}
-
+    
     /* hdfs file exists? */
     int re;
 	re = HDFSFileExists(fs, filename);
@@ -200,19 +211,30 @@ int main(int argc, char *argv[]) {
     }
     char* mbuf=rbuf;
 
-//	char* newfile;
     /* loop read stdin and write into hdfs file until fgets encounts NULL ! */
     while((fgets(mbuf, 4096, stdin)) != NULL ) {
-	 
-        /* whether encount a newline? */        
+	 	newfilename = tpltostr(filetpl);
+
+		/* whether encount a newline? */
         if ((strchr(mbuf, '\n')) != NULL) {
-            hdfsWrite(fs, fh, (void*)rbuf, strlen(rbuf));
-			hdfsHFlush(fs, fh);
+
+			/* produced a new filename?  */
+			if( (strcmp(newfilename, filename)) == 0 ) {
+            	hdfsWrite(fs, fh, (void*)rbuf, strlen(rbuf));
+				hdfsHFlush(fs, fh);
+			} else {
+				hdfsCloseFile(fs, fh);
+				fh = HDFSopenfile(fs, newfilename, 2);
+				hdfsWrite(fs, fh, (void*)rbuf, strlen(rbuf));
+				hdfsHFlush(fs, fh);
+			}
+         }
+		strcpy(filename, newfilename);
     }
     free(rbuf);
-
+    
     /* close hdfs file and disconnect! */
     hdfsCloseFile(fs, fh);
-    hdfsDisconnect(fs);    
+    hdfsDisconnect(fs);
     return 0;
 }
