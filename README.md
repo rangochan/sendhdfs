@@ -1,32 +1,29 @@
 # Pre-requisites
 
-* sudo apt-get install zlib1g-dev
-* need librdkafka installed in parent directory
- * https://github.com/edenhill/librdkafka
-* need kafka broker running locally
+* install hadoop-libhdfs
 
-# rsyslog v7
+# rsyslog v8
 
-add Ubuntu repository for rsyslog (precise)
-
-edit /etc/apt/sources.d/adiscon
+add Centos repository for rsyslog
 
 ```
-deb http://ubuntu.adiscon.com/v7-devel precise/
-deb-src http://ubuntu.adiscon.com/v7-devel precise/
+cd /etc/yum.repo.d
+wget http://rpms.adiscon.com/v8-stable/rsyslog.repo
+sudo yum update
 ```
 
-...and then... (make sure it installs v7)
+then install rsyslog-v8
 
 ```
-apt-get install rsyslog
+sudo yum list rsyslog
+sudo yum install rsyslog
 ```
 
-# Building and installing sendkafka
+# Building and installing sendhdfs
 
 ```
 make
-mv sendkafka /usr/local/bin
+mv sendhdfs /usr/local/bin
 ```
 
 # Rsyslog configuration
@@ -38,16 +35,11 @@ At the start:
 ```
 $ModLoad omprog
 ```
-In the global section:
 
-```
-$template JSONDefault, "{\"message\":\"%msg:::json%\",\"fromhost\":\"%HOSTNAME:::json%\",\"facility\":\"%syslogfacility-text%\",\"priority\":\"%syslogpriority-text%\",\"timereported\":\"%timereported:::date-rfc3339%\",\"timegenerated\":\"%timegenerated:::date-rfc3339%\"}\n",json
-
-```
 After the very last line:
 
 ```
-$ActionOMProgBinary /usr/local/bin/sendkafka
+$ActionOMProgBinary /usr/local/bin/sendhdfs
 *.* :omprog:;cee_enhanced
 ```
 
@@ -56,13 +48,3 @@ Check configuration
 ```
 rsyslogd -f /etc/rsyslog.conf -N1
 ```
-
-Modify AppArmor:
-
-```
-/etc/apparmor.d/local/usr.sbin.rsyslogd
-```
-
-Reload
-
-If you're having problems, look into AppArmor or SELinux CAP.
