@@ -1,6 +1,7 @@
 # Pre-requisites
 
 * install hadoop-libhdfs
+* set environment variable CLASSPATH depending on your libhdfs installed path
 
 # rsyslog v8
 
