@@ -13,16 +13,24 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <assert.h>
+#include <signal.h>
 
+static int run = 1;
 static char* listlogfile = "/var/log/listlog.log";
+
+/* define signal handler function */
+static void stop(int sig) {
+    run = 0;
+}
+
 /* read configuration file */
 int read_config(const char * key, char * value, int size, const char * file)
 {
 	char  buf[1024] = { 0 };
-	char * start = NULL;
-	char * end = NULL;
+	char* start = NULL;
+	char* end = NULL;
 	int  found = 0;
-	FILE * fp = NULL;
+	FILE* fp = NULL;
 	int keylen = strlen(key);
 
 	// check parameters
@@ -179,9 +187,23 @@ void delList(listNode* pHead) {
 	pHead=NULL;
 }
 
+/* get file size */
+int getfilesize(char* pathname) {
+    struct stat buf;
+    if( (stat(pathname, &buf)) != -1 ) {
+        return buf.st_size;
+    } else {
+        return -1;
+    }
+}
+
 /* write list remain data into a local file when main exit */
 void writelistData(listNode* pHead) {
-	int fd=open(listlogfile, O_WRONLY|O_APPEND|O_CREAT, 0666);
+	if( getfilesize(listlogfile) > 0 ) {
+        unlink(listlogfile);
+    }
+
+    int fd=open(listlogfile, O_WRONLY|O_APPEND|O_CREAT, 0666);
 	if(fd == !-1)
 		return;
 	char* buffer=NULL;
@@ -202,7 +224,7 @@ void writelistData(listNode* pHead) {
 void writefiletoList(char* pathname, listNode* pHead)
 {
      int fd=open(pathname,O_RDONLY|O_CREAT,0666);
-     assert(-1 != fd);
+//     assert( fd != -1 );
      char buf[1024]={0};
      while(read(fd,buf,1023) > 0)
      {
@@ -212,6 +234,10 @@ void writefiletoList(char* pathname, listNode* pHead)
      close(fd);
 }
 
+/* read data from listlogfile and write into list */
+void readfiletoList(listNode* head) {
+    writefiletoList(listlogfile, head);
+}
 
 char* timestr(char* flag) {    
 	time_t timenow = time(NULL);    
@@ -229,7 +255,7 @@ char* tpltostr(char* str) {
         int i = 0;
         char* p = "%";
         char* str_buf = strdup(str);
-        char* token;
+        char* token = NULL;
         
         for( token = strsep(&str_buf, p); token != NULL; token = strsep(&str_buf, p)) {
             proper[i] = strdup(token);
@@ -292,8 +318,10 @@ char* tpltostr(char* str) {
         for( j; j< i; j++ ) {
             strcat(tmp, proper[j]);
             free(proper[j]);
+            proper[j] = NULL;
         }
         free(str_buf);
+        str_buf = NULL;
 
         return tmp;
 }
@@ -346,19 +374,30 @@ void usage(const char * cmd)
 
 int main(int argc, char *argv[]) {
     
+    /* set CLASSPATH depending on your actual install path of libhdfs */
+    char* javabuf = (char*)malloc(sizeof(char*)*1024*20);
+    char* filep="/usr/home/shixi_jiangen/classpath.txt";
+    memset(javabuf, '\0', sizeof(javabuf));
+    FILE* fp = fopen(filep, "r");
+    fgets(javabuf, 1024*15, fp);
+    setenv("CLASSPATH", javabuf, 1);
+    free(javabuf);
+    javabuf = NULL;
+
     char* servername = NULL;
     int portnum = 8020;
     char* username="hadoop";
 	char* template = NULL; 
-    char* filename;
-    char* newfilename; 
+    char* filename = NULL;
+    char* newfilename = NULL; 
 	int opt;
-	listNode* head;
+	
+    listNode* head;
 	initList(&head);
+    
     char value[1024] = { 0 };
 	int listmaxsize = 1024*1024;
 
-	printf("test \n");	
 	if (read_config("template", value, sizeof(value), "/etc/sendhdfs.conf") > 0) {
 		template = strdup(value);
         memset(value,'\0',1024);
@@ -386,7 +425,7 @@ int main(int argc, char *argv[]) {
 		listlogfile = strdup(value);
 		memset(value,'\0',1024);
 	}
-	printf("test1 \n");	
+    
     while((opt = getopt(argc, argv, "hd:p:u:t:c:m:l:")) !=-1) {
         switch(opt) {
 
@@ -419,12 +458,12 @@ int main(int argc, char *argv[]) {
 				break;
 
 			case 'd':
-                if( optarg != NULL)
+                if( optarg != NULL )
 					servername = optarg;
                 break;
             
             case 'p':
-				if( optarg != NULL) {
+				if( optarg != NULL ) {
 					if ( atoi(optarg) < 1024 || atoi(optarg) > 65535 ) {
                     	portnum = 8020;
                 	} else {
@@ -434,22 +473,22 @@ int main(int argc, char *argv[]) {
                 break;
 
             case 'u':
-				if( optarg != NULL)
+				if( optarg != NULL )
 					username = optarg;
                 break;
 
 			case 't':
-                if( optarg != NULL)
+                if( optarg != NULL ) 
 					template = optarg;
 				break;
 
 			case 'l':
-                if( optarg != NULL)
+                if( optarg != NULL )
 					strcpy(listlogfile, optarg);
 				break;
 
 			case 'm':
-                if( optarg != NULL)
+                if( optarg != NULL )
 					listmaxsize = atoi(optarg);
 				break;
             
@@ -459,8 +498,16 @@ int main(int argc, char *argv[]) {
                 break;
         }
     }
-	
-	printf("test2 \n");	
+    
+    readfiletoList(head);
+
+    /* signal processing! */
+    signal(SIGINT, stop);
+    signal(SIGTERM, stop);
+    signal(SIGHUP, stop);
+//    signal(SIGPIPE, stop);
+    signal(SIGPIPE, SIG_IGN);
+
     /* convert filetemplatename into filename */ 
     filename = strdup(tpltostr(template)); 
     printf("%s\n", filename);
@@ -472,7 +519,9 @@ int main(int argc, char *argv[]) {
 	}
 
     free(servername);
+    servername = NULL;
     free(username);
+    username = NULL;
 
     /* hdfs file exists? */
     int re;
@@ -488,20 +537,29 @@ int main(int argc, char *argv[]) {
 		exit(-1);
 	}
     
-    char* rbuf=(char *)malloc(sizeof(char*) * 1024);
+    char* rbuf =(char*)malloc(sizeof(char*) * 1024);
     if (rbuf == NULL) {
         return -2;
     }
-    char* mbuf=rbuf;
+    int writesize = 0;
+    char* rtmp=NULL;
 
     /* loop read stdin and write into hdfs file until fgets encounts NULL ! */
-    while((fgets(mbuf, 4096, stdin)) != NULL ) {
+    while( run ) {
+		newfilename = tpltostr(template);
+         
+        rtmp = fgets(rbuf, 4096, stdin);
+        if( rtmp == NULL) {
+            run = 0;
+        }
+
 		if(EINTR==errno) {
 			continue;
 		}
 
-		if( listsize >= listmaxsize)
+		if( listsize >= listmaxsize) {
 			sleep(2);
+        }
 
 		listInsert(head,rbuf);
 		char* tmpbuf=NULL;
@@ -511,33 +569,51 @@ int main(int argc, char *argv[]) {
 			len=strlen(tmpbuf);
 		}
 
-		newfilename = tpltostr(template);
-
 		/* whether encount a newline? */
-        //if ((strchr(mbuf, '\n')) != NULL) {
-
-			/* produced a new filename?  */
-		if( (strcmp(newfilename, filename)) == 0 ) {
+        if ((strchr(tmpbuf, '\n')) != NULL) {
+		    
+            /* produced a new filename? */
+		    if( (strcmp(newfilename, filename)) == 0 ) {
+                hdfsWrite(fs, fh, (void*)tmpbuf, len);
+			    hdfsHFlush(fs, fh);
+		    } else {
+			    hdfsCloseFile(fs, fh);
+			    fh = HDFSopenfile(fs, newfilename, 2);
+			    hdfsWrite(fs, fh, (void*)tmpbuf, len);
+			    hdfsHFlush(fs, fh);
+		    }
+        } else {
             hdfsWrite(fs, fh, (void*)tmpbuf, len);
-			hdfsHFlush(fs, fh);
-		} else {
-			hdfsCloseFile(fs, fh);
-			fh = HDFSopenfile(fs, newfilename, 2);
-			hdfsWrite(fs, fh, (void*)tmpbuf, len);
-			hdfsHFlush(fs, fh);
-		}
+            hdfsHFlush(fs, fh);
+        }
+
+        if( writesize == -1) {
+            fprintf(stderr, "failed to write data into hdfs file %s\n", filename);
+        } else {
+            delfirstNode(head);    
+        }
+    
 		strcpy(filename, newfilename);
     }
+	free(template);
+    template = NULL;
     free(rbuf);
+    rbuf = NULL;
 
 	
     /* close hdfs file and disconnect! */
-    hdfsCloseFile(fs, fh);
-    hdfsDisconnect(fs);
-	
+    int fe = hdfsCloseFile(fs, fh);
+    if(fe != 0) {
+        fprintf(stderr, "failed to close hdfs file!\n");
+    }
+
+    int he = hdfsDisconnect(fs);
+    if(he != 0) {
+        fprintf(stderr, "failed to disconnect hdfs server!\n");
+    }
+
 	writelistData(head);
 	delList(head);
-	free(template);
 
     return 0;
 }
