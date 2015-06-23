@@ -1,7 +1,7 @@
 # Pre-requisites
 
 * install hadoop-libhdfs
-* set environment variable CLASSPATH depending on your libhdfs installed path
+* set environment variable CLASSPATH depending on your libhdfs installed path，
 	more details:http://www.rsyslog.com/doc/omhdfs.html
 
 # Rsyslog v8
